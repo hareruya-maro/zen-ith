@@ -14,19 +14,23 @@ ZIP_PATH="${DIST_DIR}/${APP_NAME}-macOS.zip"
 DMG_PATH="${DIST_DIR}/${APP_NAME}-Installer.dmg"
 APPCAST_DIR="${DIST_DIR}/appcast"
 
+export PATH="/opt/homebrew/bin:/usr/local/bin:${PATH}"
+
 echo "🧹 出力ディレクトリを初期化しています: ${DIST_DIR}"
 rm -rf "${DIST_DIR}"
 mkdir -p "${DIST_DIR}" "${APPCAST_DIR}"
 
-echo "🔨 Release 構成で ${APP_NAME}.app をビルドしています..."
-xcodebuild \
-  -project "${PROJECT_ROOT}/${APP_NAME}.xcodeproj" \
-  -scheme "${APP_NAME}" \
-  -configuration Release \
-  -derivedDataPath "${DERIVED_DATA}" \
-  -clonedSourcePackagesDirPath "${SOURCE_PACKAGES}" \
-  OTHER_SWIFT_FLAGS="-disable-sandbox" \
-  build
+if [[ "${1:-}" != "--skip-build" ]] || [[ ! -d "${APP_BUNDLE}" ]]; then
+  echo "🔨 Release 構成で ${APP_NAME}.app をビルドしています..."
+  xcodebuild \
+    -project "${PROJECT_ROOT}/${APP_NAME}.xcodeproj" \
+    -scheme "${APP_NAME}" \
+    -configuration Release \
+    -derivedDataPath "${DERIVED_DATA}" \
+    -clonedSourcePackagesDirPath "${SOURCE_PACKAGES}" \
+    OTHER_SWIFT_FLAGS="-disable-sandbox" \
+    build
+fi
 
 cp -R "${APP_BUNDLE}" "${DIST_DIR}/${APP_NAME}.app"
 
@@ -37,8 +41,25 @@ fi
 
 if [[ -n "${DEVELOPER_ID_APPLICATION:-}" ]]; then
   echo "🔏 Developer ID でコード署名を実行しています: ${DEVELOPER_ID_APPLICATION}"
-  # Sparkle.framework 内部の XPC サービス・ヘルパーを含めて Hardened Runtime 付きで署名
-  codesign --force --deep --options runtime \
+  SPARKLE_FRAMEWORK="${DIST_DIR}/${APP_NAME}.app/Contents/Frameworks/Sparkle.framework"
+  if [[ -d "${SPARKLE_FRAMEWORK}" ]]; then
+    codesign --force --options runtime --timestamp \
+      --sign "${DEVELOPER_ID_APPLICATION}" \
+      "${SPARKLE_FRAMEWORK}/Versions/B/XPCServices/Installer.xpc"
+    codesign --force --options runtime --timestamp --preserve-metadata=entitlements \
+      --sign "${DEVELOPER_ID_APPLICATION}" \
+      "${SPARKLE_FRAMEWORK}/Versions/B/XPCServices/Downloader.xpc"
+    codesign --force --options runtime --timestamp \
+      --sign "${DEVELOPER_ID_APPLICATION}" \
+      "${SPARKLE_FRAMEWORK}/Versions/B/Autoupdate"
+    codesign --force --options runtime --timestamp \
+      --sign "${DEVELOPER_ID_APPLICATION}" \
+      "${SPARKLE_FRAMEWORK}/Versions/B/Updater.app"
+    codesign --force --options runtime --timestamp \
+      --sign "${DEVELOPER_ID_APPLICATION}" \
+      "${SPARKLE_FRAMEWORK}"
+  fi
+  codesign --force --options runtime --timestamp \
     --entitlements "${PROJECT_ROOT}/${APP_NAME}/${APP_NAME}.entitlements" \
     --sign "${DEVELOPER_ID_APPLICATION}" \
     "${DIST_DIR}/${APP_NAME}.app"
@@ -50,10 +71,6 @@ else
     --sign - \
     "${DIST_DIR}/${APP_NAME}.app"
 fi
-
-echo "📦 配布・Sparkle自動更新用 ZIP アーカイブを作成しています: ${ZIP_PATH}"
-ditto -c -k --sequesterRsrc --keepParent "${DIST_DIR}/${APP_NAME}.app" "${ZIP_PATH}"
-cp "${ZIP_PATH}" "${APPCAST_DIR}/"
 
 echo "💿 配布用 DMG ディスクイメージを作成しています: ${DMG_PATH}"
 mkdir -p "${STAGING_DMG_DIR}"
@@ -68,6 +85,21 @@ hdiutil create \
   "${DMG_PATH}"
 
 rm -rf "${STAGING_DMG_DIR}"
+
+if [[ -n "${DEVELOPER_ID_APPLICATION:-}" ]]; then
+  codesign --force --timestamp --sign "${DEVELOPER_ID_APPLICATION}" "${DMG_PATH}"
+  if command -v asc >/dev/null 2>&1; then
+    echo "🍏 Apple Notary Service へ DMG (および内部の ${APP_NAME}.app) を提出して公証 (Notarization) を待機しています..."
+    asc notarization submit --file "${DMG_PATH}" --wait
+    echo "📎 公証チケットを DMG および ${APP_NAME}.app に Staple しています..."
+    xcrun stapler staple "${DMG_PATH}"
+    xcrun stapler staple "${DIST_DIR}/${APP_NAME}.app"
+  fi
+fi
+
+echo "📦 配布・Sparkle自動更新用 ZIP アーカイブを作成しています: ${ZIP_PATH}"
+ditto -c -k --sequesterRsrc --keepParent "${DIST_DIR}/${APP_NAME}.app" "${ZIP_PATH}"
+cp "${ZIP_PATH}" "${APPCAST_DIR}/"
 
 # Sparkle の generate_appcast が存在する場合は appcast.xml の自動生成を試みる
 GENERATE_APPCAST_BIN="${PROJECT_ROOT}/Vendor/Sparkle/bin/generate_appcast"

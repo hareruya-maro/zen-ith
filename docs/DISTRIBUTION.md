@@ -55,62 +55,21 @@ Swift Package の解決後、`.build/SourcePackages` 内に展開された Spark
 - `MARKETING_VERSION = 0.2.0;`（表示バージョン）
 - `CURRENT_PROJECT_VERSION = 2;`（ビルド番号：前回より必ず大きい整数にする）
 
-### Step 2. Developer ID 署名付きパッケージ＆`appcast.xml` の一括生成
-環境変数 `DEVELOPER_ID_APPLICATION` にご自身の証明書名を指定して [`scripts/package_release.sh`](../scripts/package_release.sh) を実行します。
+### Step 2. ビルド・Developer ID 署名・Apple 公証（Notarization）・`appcast.xml` の一括生成
+[`scripts/package_release.sh`](../scripts/package_release.sh) を実行すると、キーチェーン内の `Developer ID Application` 証明書の自動検出、Sparkle 2 内部バイナリ（XPC / Helper）の個別署名、DMG の生成、`asc notarization submit` による **Apple 公証（Notarization）と `xcrun stapler staple`**、`appcast.xml` の生成まで全自動で完了します。
 
 ```zsh
-# 証明書名の確認（未確認の場合）
-security find-identity -v -p codesigning
-
-# Releaseビルド + Developer ID署名 + ZIP/DMG作成 + appcast.xml自動生成
-DEVELOPER_ID_APPLICATION="Developer ID Application: Your Name (TEAMID1234)" \
-  ./scripts/package_release.sh
+# Releaseビルド + Developer ID署名 + Apple公証(Notarization) + Staple + ZIP/DMG/appcast.xml生成
+./scripts/package_release.sh
 ```
 
-スクリプト完了後、`dist/` に以下のファイルが生成されます：
-- `dist/Zen-ith.app`
-- `dist/Zen-ith-macOS.zip`（Sparkle 自動更新用アーカイブ）
-- `dist/Zen-ith-Installer.dmg`（新規インストール用ディスクイメージ）
+> **💡 補足**: すでに Release ビルド済みのバイナリに対して署名・公証・パッケージングのみを再実行したい場合は `./scripts/package_release.sh --skip-build` が利用できます。
+
+スクリプト完了後、`dist/` に以下の公証（Staple）済みファイルが生成されます：
+- `dist/Zen-ith.app`（Developer ID 署名 ＋ Notarization Staple 済）
+- `dist/Zen-ith-macOS.zip`（Sparkle 自動更新用アーカイブ・Staple 済 `.app` 収録）
+- `dist/Zen-ith-Installer.dmg`（新規インストール用ディスクイメージ・Staple 済）
 - `dist/appcast.xml`（EdDSA 署名済み Sparkle 更新フィード）
-
-### Step 3. Apple 公証（Notarization）の実行
-初回のみ `notarytool` に認証情報を登録しておきます：
-
-```zsh
-xcrun notarytool store-credentials "zen-ith-notary" \
-  --apple-id "your-apple-id@example.com" \
-  --team-id "TEAMID1234" \
-  --password "xxxx-xxxx-xxxx-xxxx"
-```
-
-生成された `.zip` と `.dmg` を公証に提出します：
-
-```zsh
-# 1. Sparkle自動更新用の ZIP を公証（公証後に再署名・appcast再生成する場合はアプリ本体を公証してからZIP化）
-xcrun notarytool submit dist/Zen-ith-macOS.zip \
-  --keychain-profile "zen-ith-notary" \
-  --wait
-
-# 2. 新規配布用の DMG を署名・公証・Staple
-codesign --force --sign "Developer ID Application: Your Name (TEAMID1234)" \
-  dist/Zen-ith-Installer.dmg
-xcrun notarytool submit dist/Zen-ith-Installer.dmg \
-  --keychain-profile "zen-ith-notary" \
-  --wait
-xcrun stapler staple dist/Zen-ith-Installer.dmg
-```
-
-> **💡 ヒント**: `Zen-ith.app` 自体を先に公証＆Stapleしてから `.zip` 化すると、Sparkle で自動更新された後の `.app` にも公証チケットが刻印された状態になります：
-> ```zsh
-> xcrun notarytool submit dist/Zen-ith-macOS.zip --keychain-profile "zen-ith-notary" --wait
-> xcrun stapler staple dist/Zen-ith.app
-> ditto -c -k --sequesterRsrc --keepParent dist/Zen-ith.app dist/Zen-ith-macOS.zip
-> cp dist/Zen-ith-macOS.zip dist/appcast/
-> ./Vendor/Sparkle/bin/generate_appcast \
->   --download-url-prefix "https://github.com/hareruya-maro/zen-ith/releases/download/v0.2.0/" \
->   dist/appcast
-> cp dist/appcast/appcast.xml dist/appcast.xml
-> ```
 
 ### Step 4. GitHub Releases (`hareruya-maro/zen-ith`) へ公開
 GitHub CLI (`gh`) を使うと、1コマンドでリリース作成と3ファイルのアップロードが完了します。
