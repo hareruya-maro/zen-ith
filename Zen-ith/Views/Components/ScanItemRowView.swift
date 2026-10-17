@@ -2,8 +2,12 @@ import SwiftUI
 
 struct ScanItemRowView: View {
     let item: ScanItem
+    let isAIExpanded: Bool
+    let isCleaning: Bool
     let onToggle: () -> Void
+    let onToggleAI: () -> Void
     let onRevealInFinder: () -> Void
+    let onDeleteSingle: () -> Void
 
     var body: some View {
         HStack(alignment: .center, spacing: 8) {
@@ -43,23 +47,25 @@ struct ScanItemRowView: View {
                     }
                 }
 
-                HStack(spacing: 6) {
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
                     Text(item.subtitle)
-                        .font(.system(size: 10))
-                        .foregroundStyle(.secondary)
+                        .font(.system(size: 10.5, design: item.isFileSystemItem ? .monospaced : .default))
+                        .foregroundStyle(Color.secondary)
                         .lineLimit(1)
                         .truncationMode(.middle)
 
-                    let days = item.ageInDays()
-                    if days > 0 {
-                        Text("• \(days)日前")
-                            .font(.system(size: 10))
-                            .foregroundStyle(days >= 30 ? .orange : .secondary)
+                    if item.isFileSystemItem {
+                        let days = item.ageInDays()
+                        if days > 0 {
+                            Text("• \(days)日前")
+                                .font(.system(size: 10))
+                                .foregroundStyle(days >= 30 ? .orange : .secondary)
+                        }
                     }
                 }
             }
-
-            Spacer(minLength: 4)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .help(hoverTooltipText)
 
             // 容量バッジ（サイズに応じた色分け: 1GB未満グレー、1〜5GBオレンジ、5GB以上赤）
             Text(ByteFormatter.string(fromBytes: item.sizeBytes))
@@ -69,16 +75,57 @@ struct ScanItemRowView: View {
                 .padding(.vertical, 2)
                 .background(sizeBadgeBackgroundColor, in: RoundedRectangle(cornerRadius: 4))
 
-            Button(action: onRevealInFinder) {
-                Image(systemName: "folder")
+            // ✨ AI解説・質問ボタン
+            Button(action: onToggleAI) {
+                HStack(spacing: 3) {
+                    Image(systemName: "sparkles")
+                        .font(.system(size: 10.5, weight: .semibold))
+                    Text("AI解説")
+                        .font(.system(size: 10, weight: .medium))
+                }
+                .foregroundStyle(isAIExpanded ? Color.white : Color.accentColor)
+                .padding(.horizontal, 6)
+                .padding(.vertical, 3)
+                .background(
+                    isAIExpanded ? Color.accentColor : Color.accentColor.opacity(0.12),
+                    in: RoundedRectangle(cornerRadius: 5)
+                )
+            }
+            .buttonStyle(.plain)
+            .help("「これは消して良い？」をAI・スマート解析で診断＆質問")
+
+            if item.isFileSystemItem {
+                Button(action: onRevealInFinder) {
+                    Image(systemName: "folder")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .padding(4)
+                        .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 4))
+                }
+                .buttonStyle(.plain)
+                .help("Finderで開く\n\(item.url.path)")
+                .accessibilityLabel("\(item.name) をFinderで開く")
+            } else {
+                Image(systemName: "terminal")
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
                     .padding(4)
-                    .background(Color.secondary.opacity(0.1), in: RoundedRectangle(cornerRadius: 4))
+                    .background(Color.secondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 4))
+                    .help("Docker CLI (docker prune) 経由でクリーンアップします")
+            }
+
+            // 🗑️ 単一項目削除ボタン
+            Button(action: onDeleteSingle) {
+                Image(systemName: "trash")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.red)
+                    .padding(4)
+                    .background(Color.red.opacity(0.1), in: RoundedRectangle(cornerRadius: 4))
             }
             .buttonStyle(.plain)
-            .help("Finderで開く")
-            .accessibilityLabel("\(item.name) をFinderで開く")
+            .disabled(isCleaning)
+            .help("この項目のみをすぐに削除 (\(ByteFormatter.string(fromBytes: item.sizeBytes)))")
+            .accessibilityLabel("\(item.name) を削除")
         }
         .padding(.vertical, 5)
         .padding(.horizontal, 8)
@@ -87,6 +134,13 @@ struct ScanItemRowView: View {
                 .fill(item.isSelected ? Color.accentColor.opacity(0.06) : Color.clear)
         )
         .contentShape(Rectangle())
+    }
+
+    private var hoverTooltipText: String {
+        if item.isFileSystemItem {
+            return "\(item.name)\nフルパス: \(item.url.path)"
+        }
+        return "\(item.name)\n\(item.subtitle)"
     }
 
     private var sizeBadgeTextColor: Color {
@@ -110,6 +164,8 @@ struct ScanItemRowView: View {
         case .installedApp: .green
         case .extractedArchive: .blue
         case .exactDuplicate: .purple
+        case .workspaceArtifact: .indigo
+        case .dockerReclaimable: .cyan
         case .oldInstaller, .oldArchive: .secondary
         }
     }
@@ -119,6 +175,8 @@ struct ScanItemRowView: View {
         case .installedApp: Color.green.opacity(0.15)
         case .extractedArchive: Color.blue.opacity(0.15)
         case .exactDuplicate: Color.purple.opacity(0.15)
+        case .workspaceArtifact: Color.indigo.opacity(0.15)
+        case .dockerReclaimable: Color.cyan.opacity(0.15)
         case .oldInstaller, .oldArchive: Color.secondary.opacity(0.14)
         }
     }

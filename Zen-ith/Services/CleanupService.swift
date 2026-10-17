@@ -11,6 +11,7 @@ nonisolated enum CleanupService {
     static func performCleanup(
         items: [ScanItem],
         deletionMode: DeletionMode,
+        activePreset: SmartFilterPreset = .recommended,
         onProgress: @Sendable (Int, Int, String) async -> Void
     ) async -> CleanupSummary {
         let fm = FileManager.default
@@ -20,12 +21,24 @@ nonisolated enum CleanupService {
         var failures: [(name: String, reason: String)] = []
 
         // 削除対象に .dmg が含まれている場合はマウント中イメージ一覧を事前取得
-        let mountedDmgMap = items.contains(where: { $0.url.pathExtension.lowercased() == "dmg" })
+        let mountedDmgMap = items.contains(where: { $0.isFileSystemItem && $0.url.pathExtension.lowercased() == "dmg" })
             ? fetchMountedDiskImages()
             : [:]
 
         for (index, item) in items.enumerated() {
             await onProgress(index + 1, totalCount, item.name)
+
+            // Docker CLI Prune ターゲットの場合
+            if case .dockerPrune(let resourceType) = item.targetKind {
+                switch DockerScanner.executeDockerPrune(resourceType: resourceType, preset: activePreset) {
+                case .success:
+                    deletedIDs.insert(item.id)
+                    freedBytes += item.sizeBytes
+                case .failure(let error):
+                    failures.append((name: item.name, reason: error.localizedDescription))
+                }
+                continue
+            }
 
             let targetURL = item.url
             guard fm.fileExists(atPath: targetURL.path) else {

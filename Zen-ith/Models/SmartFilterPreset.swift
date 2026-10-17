@@ -19,6 +19,29 @@ enum SmartFilterPreset: String, CaseIterable, Identifiable, Sendable {
     }
 }
 
+/// 定期スキャン間隔設定
+enum ScanScheduleInterval: Int, CaseIterable, Identifiable, Sendable {
+    case manual = 0
+    case every1Hour = 3600
+    case every6Hours = 21600
+    case daily = 86400
+
+    var id: Int { rawValue }
+
+    var title: String {
+        switch self {
+        case .manual: "手動のみ"
+        case .every1Hour: "1時間ごと"
+        case .every6Hours: "6時間ごと"
+        case .daily: "1日1回"
+        }
+    }
+
+    var timeIntervalSeconds: TimeInterval? {
+        rawValue > 0 ? TimeInterval(rawValue) : nil
+    }
+}
+
 /// 削除（クリーンアップ）方式
 enum DeletionMode: String, CaseIterable, Identifiable, Sendable {
     case hybrid = "hybrid"

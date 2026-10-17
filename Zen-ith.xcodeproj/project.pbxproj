@@ -6,6 +6,11 @@
 	objectVersion = 77;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		C65094BB1C58646DE2B7DA2A /* Sparkle.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = 570978E26079C71C2EE1E288 /* Sparkle.xcframework */; };
+		C65094BC1C58646DE2B7DA2A /* Sparkle.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 570978E26079C71C2EE1E288 /* Sparkle.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		A10000012B00000100000001 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -16,13 +21,28 @@
 		};
 /* End PBXContainerItemProxy section */
 
+/* Begin PBXCopyFilesBuildPhase section */
+		C65094BD1C58646DE2B7DA2A /* Embed Frameworks */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 10;
+			files = (
+				C65094BC1C58646DE2B7DA2A /* Sparkle.xcframework in Embed Frameworks */,
+			);
+			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
+
 /* Begin PBXFileReference section */
 		A10000042B00000100000001 /* Zen-ith.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Zen-ith.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000052B00000100000001 /* Zen-ithTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Zen-ithTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		570978E26079C71C2EE1E288 /* Sparkle.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = Sparkle.xcframework; path = Vendor/Sparkle/Sparkle.xcframework; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
-		A10000062B00000100000001 /* Exceptions for "Zen-ith" folder in "Zen-ith" target */ = {
+		A10000062B00000100000001 /* PBXFileSystemSynchronizedBuildFileExceptionSet */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
@@ -36,7 +56,7 @@
 		A10000072B00000100000001 /* Zen-ith */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				A10000062B00000100000001 /* Exceptions for "Zen-ith" folder in "Zen-ith" target */,
+				A10000062B00000100000001 /* PBXFileSystemSynchronizedBuildFileExceptionSet */,
 			);
 			path = "Zen-ith";
 			sourceTree = "<group>";
@@ -53,6 +73,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				C65094BB1C58646DE2B7DA2A /* Sparkle.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -71,6 +92,7 @@
 			children = (
 				A10000072B00000100000001 /* Zen-ith */,
 				A10000082B00000100000001 /* Zen-ithTests */,
+				570978E26079C71C2EE1E288 /* Sparkle.xcframework */,
 				A100000C2B00000100000001 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -94,6 +116,7 @@
 				A100000E2B00000100000001 /* Sources */,
 				A10000092B00000100000001 /* Frameworks */,
 				A100000F2B00000100000001 /* Resources */,
+				C65094BD1C58646DE2B7DA2A /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
@@ -286,6 +309,7 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.zenith.cleaner;
@@ -310,6 +334,7 @@
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
 				);
 				MARKETING_VERSION = 0.1.0;
 				PRODUCT_BUNDLE_IDENTIFIER = dev.zenith.cleaner;
@@ -368,15 +393,6 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		A10000152B00000100000001 /* Build configuration list for PBXProject "Zen-ith" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				A10000162B00000100000001 /* Debug */,
-				A10000172B00000100000001 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		A100000D2B00000100000001 /* Build configuration list for PBXNativeTarget "Zen-ith" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -391,6 +407,15 @@
 			buildConfigurations = (
 				A100001A2B00000100000001 /* Debug */,
 				A100001B2B00000100000001 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		A10000152B00000100000001 /* Build configuration list for PBXProject "Zen-ith" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				A10000162B00000100000001 /* Debug */,
+				A10000172B00000100000001 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

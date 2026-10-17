@@ -1,5 +1,66 @@
 import Foundation
 
+/// Dockerのクリーンアップ対象リソース種別
+enum DockerResourceType: String, CaseIterable, Hashable, Sendable {
+    case images = "Images"
+    case containers = "Containers"
+    case localVolumes = "Local Volumes"
+    case buildCache = "Build Cache"
+
+    var displayName: String {
+        switch self {
+        case .images: "Docker Images (未使用イメージ)"
+        case .containers: "Docker Containers (停止中コンテナ)"
+        case .localVolumes: "Docker Local Volumes (永続化ボリューム)"
+        case .buildCache: "Docker Build Cache (BuildKitキャッシュ)"
+        }
+    }
+
+    var isCaution: Bool {
+        self == .localVolumes
+    }
+
+    var cautionReason: String? {
+        if self == .localVolumes {
+            return "ローカルDB等の永続化データが消える可能性があるため、一括選択から除外されています（個別選択のみ可能）"
+        }
+        return nil
+    }
+
+    /// スマートフィルタに応じた docker prune サブコマンド引数を生成する
+    func pruneArguments(for preset: SmartFilterPreset) -> [String] {
+        let filterHourArg: [String] = switch preset {
+        case .recommended, .olderThan30Days:
+            ["--filter", "until=720h"]
+        case .olderThan90Days:
+            ["--filter", "until=2160h"]
+        case .all:
+            []
+        }
+
+        switch self {
+        case .images:
+            return ["image", "prune", "-a"] + filterHourArg + ["-f"]
+        case .containers:
+            return ["container", "prune"] + filterHourArg + ["-f"]
+        case .buildCache:
+            return ["builder", "prune"] + filterHourArg + ["-f"]
+        case .localVolumes:
+            // docker volume prune は until フィルタ非対応のため -f のみ
+            return ["volume", "prune", "-f"]
+        }
+    }
+}
+
+/// Docker仮想ディスクファイル情報（Docker.raw / OrbStack 等）
+struct DockerDiskInfo: Identifiable, Hashable, Sendable {
+    var id: String { diskURL.path }
+    let providerName: String
+    let diskURL: URL
+    let allocatedBytes: Int64
+    let hintText: String
+}
+
 /// 個別スキャンアイテムに付与するスマート判定バッジ
 enum SmartBadge: Hashable, Sendable {
     case installedApp(appName: String)
@@ -7,6 +68,8 @@ enum SmartBadge: Hashable, Sendable {
     case exactDuplicate(originalFileName: String)
     case oldInstaller
     case oldArchive
+    case workspaceArtifact(kindLabel: String)
+    case dockerReclaimable(totalSizeLabel: String)
 
     var displayText: String {
         switch self {
@@ -20,6 +83,10 @@ enum SmartBadge: Hashable, Sendable {
             "📦 古いインストーラー"
         case .oldArchive:
             "🗜️ 古いアーカイブ"
+        case .workspaceArtifact(let kindLabel):
+            "📁 \(kindLabel)"
+        case .dockerReclaimable(let totalSizeLabel):
+            "🐳 総容量 \(totalSizeLabel)"
         }
     }
 
@@ -28,7 +95,7 @@ enum SmartBadge: Hashable, Sendable {
         switch self {
         case .installedApp, .extractedArchive, .exactDuplicate:
             true
-        case .oldInstaller, .oldArchive:
+        case .oldInstaller, .oldArchive, .workspaceArtifact, .dockerReclaimable:
             false
         }
     }
@@ -53,6 +120,12 @@ enum SizeSeverity: Sendable {
     }
 }
 
+/// スキャンされた個別アイテムのアクション種別
+enum ScanItemTargetKind: Hashable, Sendable {
+    case fileSystem
+    case dockerPrune(DockerResourceType)
+}
+
 /// スキャンされた個別アイテム
 struct ScanItem: Identifiable, Hashable, Sendable {
     let id: String
@@ -62,6 +135,7 @@ struct ScanItem: Identifiable, Hashable, Sendable {
     let sizeBytes: Int64
     let lastModified: Date
     let category: ScanCategoryType
+    let targetKind: ScanItemTargetKind
     let smartBadge: SmartBadge?
     let isCaution: Bool
     let cautionReason: String?
@@ -75,6 +149,7 @@ struct ScanItem: Identifiable, Hashable, Sendable {
         sizeBytes: Int64,
         lastModified: Date,
         category: ScanCategoryType,
+        targetKind: ScanItemTargetKind = .fileSystem,
         smartBadge: SmartBadge? = nil,
         isCaution: Bool = false,
         cautionReason: String? = nil,
@@ -87,14 +162,23 @@ struct ScanItem: Identifiable, Hashable, Sendable {
         self.sizeBytes = sizeBytes
         self.lastModified = lastModified
         self.category = category
+        self.targetKind = targetKind
         self.smartBadge = smartBadge
         self.isCaution = isCaution
         self.cautionReason = cautionReason
         self.isSelected = isSelected
     }
 
+    var isFileSystemItem: Bool {
+        if case .fileSystem = targetKind {
+            return true
+        }
+        return false
+    }
+
     /// 現在からの経過日数
     func ageInDays(now: Date = Date()) -> Int {
+        guard isFileSystemItem else { return 0 }
         let interval = now.timeIntervalSince(lastModified)
         return max(0, Int(interval / 86_400))
     }
@@ -105,9 +189,14 @@ struct ScanItem: Identifiable, Hashable, Sendable {
 
     /// 指定されたスマートフィルタプリセットにおいて選択状態にすべきかを判定する
     func matchesFilter(_ preset: SmartFilterPreset, now: Date = Date()) -> Bool {
-        // ArchivesやOllamaモデルなどの要注意項目は自動一括選択から常に除外（個別選択のみ許可）
+        // ArchivesやOllamaモデル、Docker Local Volumesなどの要注意項目は自動一括選択から常に除外
         if isCaution {
             return false
+        }
+
+        // Docker項目（Local Volumes以外）はプリセットの日数自体が `docker prune --filter until=XXh` にマッピングされるため選択ON
+        if case .dockerPrune = targetKind {
+            return sizeBytes > 0
         }
 
         let days = ageInDays(now: now)
@@ -131,4 +220,31 @@ struct ScanItem: Identifiable, Hashable, Sendable {
             return days >= 90
         }
     }
+
+    /// 検索キーワード（スペース区切りAND検索）に一致するか判定する
+    func matchesSearchQuery(_ rawQuery: String) -> Bool {
+        let trimmed = rawQuery.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return true }
+
+        let tokens = trimmed
+            .components(separatedBy: .whitespacesAndNewlines)
+            .filter { !$0.isEmpty }
+        guard !tokens.isEmpty else { return true }
+
+        let badgeText = smartBadge?.displayText ?? ""
+        let searchableFields = [
+            name,
+            subtitle,
+            url.path,
+            category.title,
+            badgeText
+        ]
+
+        return tokens.allSatisfy { token in
+            searchableFields.contains { field in
+                field.localizedStandardContains(token)
+            }
+        }
+    }
 }
+

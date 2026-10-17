@@ -20,9 +20,10 @@ xcuserdata/
 *.xccheckout
 *.xcuserstate
 
-# Swift Package Manager
+# Swift Package Manager / Build Output
 .build/
 .swiftpm/
+dist/
 
 # Profiling / Coverage
 *.profraw

@@ -9,6 +9,7 @@ struct ZenIthApp: App {
         let appSettings = AppSettings()
         _settings = StateObject(wrappedValue: appSettings)
         _scannerViewModel = StateObject(wrappedValue: ScannerViewModel(settings: appSettings))
+        _ = SoftwareUpdaterManager.shared
     }
 
     var body: some Scene {

@@ -3,6 +3,8 @@ import Foundation
 /// スキャン結果の大分類カテゴリ
 enum ScanCategoryType: String, CaseIterable, Identifiable, Sendable {
     case downloads = "downloads"
+    case workspace = "workspace"
+    case docker = "docker"
     case xcode = "xcode"
     case android = "android"
     case nodeWeb = "nodeWeb"
@@ -15,6 +17,8 @@ enum ScanCategoryType: String, CaseIterable, Identifiable, Sendable {
     var title: String {
         switch self {
         case .downloads: "ダウンロード整理"
+        case .workspace: "ワークスペース (node_modules等)"
+        case .docker: "Docker / コンテナ"
         case .xcode: "Xcode / iOS"
         case .android: "Android"
         case .nodeWeb: "Node.js / Web"
@@ -27,6 +31,8 @@ enum ScanCategoryType: String, CaseIterable, Identifiable, Sendable {
     var systemImage: String {
         switch self {
         case .downloads: "tray.and.arrow.down.fill"
+        case .workspace: "folder.fill.badge.gearshape"
+        case .docker: "shippingbox.fill"
         case .xcode: "hammer.fill"
         case .android: "cpu.fill"
         case .nodeWeb: "globe"

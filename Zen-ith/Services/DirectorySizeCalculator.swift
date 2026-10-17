@@ -97,4 +97,60 @@ nonisolated enum DirectorySizeCalculator {
         }
         return Int64(size)
     }
+
+    /// Mac本体のボリューム容量（総容量・利用可能空き容量）を取得する
+    static func currentDiskSpaceMetrics(for url: URL = FileManager.default.homeDirectoryForCurrentUser) -> DiskSpaceMetrics {
+        let keys: Set<URLResourceKey> = [
+            .volumeTotalCapacityKey,
+            .volumeAvailableCapacityForImportantUsageKey,
+            .volumeAvailableCapacityKey
+        ]
+        guard let values = try? url.resourceValues(forKeys: keys) else {
+            return DiskSpaceMetrics(totalBytes: 0, availableBytes: 0)
+        }
+        let total = Int64(values.volumeTotalCapacity ?? 0)
+        let available: Int64
+        if let importantAvail = values.volumeAvailableCapacityForImportantUsage, importantAvail > 0 {
+            available = Int64(importantAvail)
+        } else {
+            available = Int64(values.volumeAvailableCapacity ?? 0)
+        }
+        return DiskSpaceMetrics(totalBytes: max(0, total), availableBytes: max(0, min(total, available)))
+    }
 }
+
+nonisolated struct DiskSpaceMetrics: Sendable, Equatable {
+    let totalBytes: Int64
+    let availableBytes: Int64
+
+    var usedBytes: Int64 {
+        max(0, totalBytes - availableBytes)
+    }
+
+    var usedFraction: Double {
+        guard totalBytes > 0 else { return 0 }
+        return min(1.0, max(0.0, Double(usedBytes) / Double(totalBytes)))
+    }
+
+    /// 選択されたキャッシュを削除した場合の予測空き容量
+    func projectedAvailableBytes(reclaiming bytesToReclaim: Int64) -> Int64 {
+        let reclaimed = max(0, bytesToReclaim)
+        guard totalBytes > 0 else { return availableBytes + reclaimed }
+        return min(totalBytes, availableBytes + reclaimed)
+    }
+
+    /// クリーンアップ後に残る使用量比率（0.0〜1.0）
+    func remainingUsedFraction(reclaiming bytesToReclaim: Int64) -> Double {
+        guard totalBytes > 0 else { return 0 }
+        let reclaimed = max(0, min(usedBytes, bytesToReclaim))
+        return Double(usedBytes - reclaimed) / Double(totalBytes)
+    }
+
+    /// 選択された削減分のディスク比率（0.0〜1.0）
+    func reclaimableFraction(reclaiming bytesToReclaim: Int64) -> Double {
+        guard totalBytes > 0 else { return 0 }
+        let reclaimed = max(0, min(usedBytes, bytesToReclaim))
+        return Double(reclaimed) / Double(totalBytes)
+    }
+}
+

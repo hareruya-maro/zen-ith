@@ -4,6 +4,7 @@ set -euo pipefail
 SCRIPT_DIR="${0:A:h}"
 PROJECT_ROOT="${SCRIPT_DIR:h}"
 DERIVED_DATA="${PROJECT_ROOT}/.build/DerivedData"
+SOURCE_PACKAGES="${PROJECT_ROOT}/.build/SourcePackages"
 APP_BUNDLE="${DERIVED_DATA}/Build/Products/Debug/Zen-ith.app"
 
 echo "🔨 Zen-ith.app をビルドしています..."
@@ -12,6 +13,7 @@ xcodebuild \
   -scheme "Zen-ith" \
   -configuration Debug \
   -derivedDataPath "${DERIVED_DATA}" \
+  -clonedSourcePackagesDirPath "${SOURCE_PACKAGES}" \
   OTHER_SWIFT_FLAGS="-disable-sandbox" \
   build
 
