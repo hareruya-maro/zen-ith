@@ -43,8 +43,12 @@ if [[ -n "${DEVELOPER_ID_APPLICATION:-}" ]]; then
     --sign "${DEVELOPER_ID_APPLICATION}" \
     "${DIST_DIR}/${APP_NAME}.app"
 else
-  echo "⚠️ Developer ID Application 証明書が見つかりません。キーチェーンまたは DEVELOPER_ID_APPLICATION 環境変数を確認してください。"
-  exit 1
+  echo "ℹ️ キーチェーンに Developer ID Application 証明書が未登録のため、ローカル署名でパッケージングを続行します。"
+  echo "   （Xcode > Settings > Accounts > Manage Certificates から Developer ID Application を追加すると自動で Developer ID 署名になります）"
+  codesign --force --deep \
+    --entitlements "${PROJECT_ROOT}/${APP_NAME}/${APP_NAME}.entitlements" \
+    --sign - \
+    "${DIST_DIR}/${APP_NAME}.app"
 fi
 
 echo "📦 配布・Sparkle自動更新用 ZIP アーカイブを作成しています: ${ZIP_PATH}"
@@ -68,7 +72,7 @@ rm -rf "${STAGING_DMG_DIR}"
 # Sparkle の generate_appcast が存在する場合は appcast.xml の自動生成を試みる
 GENERATE_APPCAST_BIN="${PROJECT_ROOT}/Vendor/Sparkle/bin/generate_appcast"
 if [[ -x "${GENERATE_APPCAST_BIN}" ]]; then
-  VERSION_TAG=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "${DIST_DIR}/${APP_NAME}.app/Contents/Info.plist" 2>/dev/null || echo "0.1.0")
+  VERSION_TAG=$(/usr/libexec/PlistBuddy -c "Print :CFBundleShortVersionString" "${DIST_DIR}/${APP_NAME}.app/Contents/Info.plist" 2>/dev/null || echo "1.0.0")
   DOWNLOAD_PREFIX="https://github.com/${GITHUB_REPO}/releases/download/v${VERSION_TAG}/"
   echo "✨ Sparkle generate_appcast で appcast.xml を生成しています..."
   if "${GENERATE_APPCAST_BIN}" --download-url-prefix "${DOWNLOAD_PREFIX}" "${APPCAST_DIR}" 2>/dev/null; then

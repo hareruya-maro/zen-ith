@@ -81,7 +81,7 @@ final class SoftwareUpdaterManager: ObservableObject {
         self.githubRepository = (info["GitHubRepository"] as? String) ?? "hareruya-maro/zen-ith"
         self.feedURLString = (info["SUFeedURL"] as? String)
             ?? "https://github.com/hareruya-maro/zen-ith/releases/latest/download/appcast.xml"
-        self.currentVersionString = (info["CFBundleShortVersionString"] as? String) ?? "0.1.0"
+        self.currentVersionString = (info["CFBundleShortVersionString"] as? String) ?? "1.0.0"
         self.currentBuildString = (info["CFBundleVersion"] as? String) ?? "1"
 
         let pubKey = (info["SUPublicEDKey"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
