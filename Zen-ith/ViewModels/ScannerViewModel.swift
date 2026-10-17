@@ -42,6 +42,11 @@ final class ScannerViewModel: ObservableObject {
     @Published var expandedCategories: Set<ScanCategoryType> = Set(ScanCategoryType.allCases)
     @Published var showingSettings: Bool = false
 
+    // スキップ・削除失敗レポート状態
+    @Published private(set) var cleanupFailures: [String: CleanupFailureDetail] = [:]
+    @Published var showingFailureReport: Bool = false
+    @Published private(set) var copiedCommandText: String?
+
     // AIアドバイザー状態
     @Published var activeAIItemID: String?
     @Published private(set) var itemAnalyses: [String: AIItemAnalysis] = [:]
@@ -152,6 +157,7 @@ final class ScannerViewModel: ObservableObject {
         let localCLI = settings.localCLITool
         let ollamaModel = settings.ollamaModel
         let geminiKey = settings.geminiAPIKey
+        let openAIKey = settings.openAIAPIKey
 
         Task {
             let responseMsg = await AIAdvisorService.askAdvisor(
@@ -160,7 +166,8 @@ final class ScannerViewModel: ObservableObject {
                 provider: provider,
                 localCLI: localCLI,
                 ollamaModel: ollamaModel,
-                geminiAPIKey: geminiKey
+                geminiAPIKey: geminiKey,
+                openAIAPIKey: openAIKey
             )
             self.itemChatHistories[item.id, default: []].append(responseMsg)
             self.isAskingAI = false
@@ -194,6 +201,8 @@ final class ScannerViewModel: ObservableObject {
         isScanning = true
         if !isBackgroundScheduled {
             bannerMessage = nil
+            cleanupFailures.removeAll()
+            showingFailureReport = false
         }
 
         let downloadDirs = settings.targetDownloadDirectories
@@ -312,11 +321,107 @@ final class ScannerViewModel: ObservableObject {
         performItemsCleanup(targets: targets, singleItemName: nil)
     }
 
+    var failureList: [CleanupFailureDetail] {
+        cleanupFailures.values.sorted { $0.itemName.localizedStandardCompare($1.itemName) == .orderedAscending }
+    }
+
+    var canRetryAnyFailureWithAdmin: Bool {
+        cleanupFailures.values.contains(where: \.canRetryWithAdmin)
+    }
+
+    func dismissFailure(id: String) {
+        cleanupFailures.removeValue(forKey: id)
+        if cleanupFailures.isEmpty {
+            showingFailureReport = false
+        }
+    }
+
+    func clearAllFailures() {
+        cleanupFailures.removeAll()
+        showingFailureReport = false
+    }
+
+    func copyTerminalCommand(_ command: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(command, forType: .string)
+        copiedCommandText = command
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            if self?.copiedCommandText == command {
+                self?.copiedCommandText = nil
+            }
+        }
+    }
+
+    func openFullDiskAccessSettings() {
+        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_AllFiles") {
+            NSWorkspace.shared.open(url)
+        }
+    }
+
+    func retryFailureWithAdmin(_ detail: CleanupFailureDetail) {
+        guard !isCleaning else { return }
+        performAdminRetry(for: [detail])
+    }
+
+    func retryAllFailuresWithAdmin() {
+        let targets = failureList.filter(\.canRetryWithAdmin)
+        guard !targets.isEmpty, !isCleaning else { return }
+        performAdminRetry(for: targets)
+    }
+
+    private func performAdminRetry(for failures: [CleanupFailureDetail]) {
+        isCleaning = true
+        cleanupProgressFraction = 0.5
+        cleanupProgressText = "管理者権限の確認ダイアログを待機中..."
+
+        let itemsMap = Dictionary(uniqueKeysWithValues: items.map { ($0.id, $0) })
+
+        Task {
+            let summary = await CleanupService.performAdminCleanup(
+                failures: failures,
+                itemsByID: itemsMap
+            )
+
+            if let activeID = self.activeAIItemID, summary.deletedItemIDs.contains(activeID) {
+                self.activeAIItemID = nil
+            }
+            for deletedID in summary.deletedItemIDs {
+                self.cleanupFailures.removeValue(forKey: deletedID)
+            }
+            for failed in summary.failedItems {
+                self.cleanupFailures[failed.itemID] = failed
+            }
+            self.items.removeAll { summary.deletedItemIDs.contains($0.id) }
+            self.diskSpace = DirectorySizeCalculator.currentDiskSpaceMetrics()
+            self.isCleaning = false
+            self.cleanupProgressFraction = 0
+            self.cleanupProgressText = ""
+
+            if self.cleanupFailures.isEmpty {
+                self.showingFailureReport = false
+            }
+
+            if !summary.deletedItemIDs.isEmpty {
+                let freedStr = ByteFormatter.string(fromBytes: summary.freedBytes)
+                if self.cleanupFailures.isEmpty {
+                    self.bannerMessage = "✅ 管理者権限で \(freedStr)（\(summary.deletedItemIDs.count)項目）をクリーンアップしました"
+                } else {
+                    self.bannerMessage = "⚠️ 管理者権限で \(freedStr) 完了（残り\(self.cleanupFailures.count)項目がスキップ中）"
+                }
+            }
+        }
+    }
+
     private func performItemsCleanup(targets: [ScanItem], singleItemName: String?) {
         isCleaning = true
         cleanupProgressFraction = 0
         cleanupProgressText = "クリーンアップ準備中..."
         bannerMessage = nil
+
+        for target in targets {
+            cleanupFailures.removeValue(forKey: target.id)
+        }
 
         let mode = settings.deletionMode
         let preset = selectedPreset
@@ -337,6 +442,17 @@ final class ScannerViewModel: ObservableObject {
             if let activeID = self.activeAIItemID, summary.deletedItemIDs.contains(activeID) {
                 self.activeAIItemID = nil
             }
+            for deletedID in summary.deletedItemIDs {
+                self.cleanupFailures.removeValue(forKey: deletedID)
+            }
+            for failed in summary.failedItems {
+                self.cleanupFailures[failed.itemID] = failed
+                self.expandedCategories.insert(failed.category)
+            }
+            if !summary.failedItems.isEmpty {
+                self.showingFailureReport = true
+            }
+
             self.items.removeAll { summary.deletedItemIDs.contains($0.id) }
             self.diskSpace = DirectorySizeCalculator.currentDiskSpaceMetrics()
             self.isCleaning = false
@@ -355,7 +471,7 @@ final class ScannerViewModel: ObservableObject {
                     self.bannerMessage = "✅ \(freedStr)（\(summary.deletedItemIDs.count)項目）をクリーンアップしました"
                 }
             } else {
-                self.bannerMessage = "⚠️ \(freedStr) 完了（\(summary.failedItems.count)項目はスキップされました）"
+                self.bannerMessage = "⚠️ \(freedStr) 完了（\(summary.failedItems.count)項目がスキップされました — 理由と対処法を表示中）"
             }
         }
     }

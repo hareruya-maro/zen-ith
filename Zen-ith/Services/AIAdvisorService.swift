@@ -345,7 +345,8 @@ nonisolated enum AIAdvisorService {
         provider: AIProviderOption,
         localCLI: LocalCLITool,
         ollamaModel: String,
-        geminiAPIKey: String
+        geminiAPIKey: String,
+        openAIAPIKey: String = ""
     ) async -> AIChatMessage {
         let instant = generateInstantAnalysis(for: item)
         let prompt = buildPrompt(for: item, instantAnalysis: instant, userQuestion: question)
@@ -366,6 +367,24 @@ nonisolated enum AIAdvisorService {
             }
             if let text = await callGeminiAPI(prompt: prompt, apiKey: key) {
                 return AIChatMessage(isUser: false, text: text, sourceLabel: "Gemini API")
+            }
+            return AIChatMessage(
+                isUser: false,
+                text: generateSmartRuleReply(for: item, instant: instant, question: question),
+                sourceLabel: "スマート解析 (フォールバック)"
+            )
+
+        case .openAIAPI:
+            let key = resolvedOpenAIKey(from: openAIAPIKey)
+            guard !key.isEmpty else {
+                return AIChatMessage(
+                    isUser: false,
+                    text: "⚠️ 設定画面で OpenAI API キーが未設定のため、スマート解析から回答します：\n" + generateSmartRuleReply(for: item, instant: instant, question: question),
+                    sourceLabel: "スマート解析 (APIキー未設定)"
+                )
+            }
+            if let text = await callOpenAIAPI(prompt: prompt, apiKey: key) {
+                return AIChatMessage(isUser: false, text: text, sourceLabel: "ChatGPT / OpenAI API")
             }
             return AIChatMessage(
                 isUser: false,
@@ -394,20 +413,25 @@ nonisolated enum AIAdvisorService {
             )
 
         case .auto:
-            // 1. Gemini API キーがあれば最優先で高速呼び出し
-            let key = resolvedGeminiKey(from: geminiAPIKey)
-            if !key.isEmpty, let text = await callGeminiAPI(prompt: prompt, apiKey: key) {
+            // 1. Gemini API キーがあれば優先呼び出し
+            let geminiKey = resolvedGeminiKey(from: geminiAPIKey)
+            if !geminiKey.isEmpty, let text = await callGeminiAPI(prompt: prompt, apiKey: geminiKey) {
                 return AIChatMessage(isUser: false, text: text, sourceLabel: "Gemini API")
             }
-            // 2. ローカルの Ollama が起動していれば利用
+            // 2. OpenAI API キーがあれば呼び出し
+            let openAIKey = resolvedOpenAIKey(from: openAIAPIKey)
+            if !openAIKey.isEmpty, let text = await callOpenAIAPI(prompt: prompt, apiKey: openAIKey) {
+                return AIChatMessage(isUser: false, text: text, sourceLabel: "ChatGPT / OpenAI API")
+            }
+            // 3. ローカルの Ollama が起動していれば利用
             if let (text, modelUsed) = await callOllamaAPI(prompt: prompt, preferredModel: ollamaModel) {
                 return AIChatMessage(isUser: false, text: text, sourceLabel: "Ollama (\(modelUsed))")
             }
-            // 3. ローカルCLI (claude / gemini) が利用可能なら呼び出し
+            // 4. ローカルCLI (agy / claude / codex) が利用可能なら呼び出し
             if let (text, toolName) = await callLocalCLI(prompt: prompt, preferredTool: localCLI) {
                 return AIChatMessage(isUser: false, text: text, sourceLabel: toolName)
             }
-            // 4. オフラインスマート解析で即座に回答
+            // 5. オフラインスマート解析で即座に回答
             return AIChatMessage(
                 isUser: false,
                 text: generateSmartRuleReply(for: item, instant: instant, question: question),
@@ -465,6 +489,12 @@ nonisolated enum AIAdvisorService {
         return ProcessInfo.processInfo.environment["GEMINI_API_KEY"] ?? ""
     }
 
+    private static func resolvedOpenAIKey(from settingsKey: String) -> String {
+        let trimmed = settingsKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty { return trimmed }
+        return ProcessInfo.processInfo.environment["OPENAI_API_KEY"] ?? ""
+    }
+
     // MARK: - Gemini REST API
 
     @concurrent
@@ -505,6 +535,49 @@ nonisolated enum AIAdvisorService {
                   let content = candidates.first?["content"] as? [String: Any],
                   let parts = content["parts"] as? [[String: Any]],
                   let text = parts.first?["text"] as? String else {
+                return nil
+            }
+            return text.trimmingCharacters(in: .whitespacesAndNewlines)
+        } catch {
+            return nil
+        }
+    }
+
+    // MARK: - OpenAI / ChatGPT REST API
+
+    @concurrent
+    private static func callOpenAIAPI(prompt: String, apiKey: String) async -> String? {
+        guard let url = URL(string: "https://api.openai.com/v1/chat/completions") else {
+            return nil
+        }
+
+        let payload: [String: Any] = [
+            "model": "gpt-4o-mini",
+            "messages": [
+                ["role": "user", "content": prompt]
+            ],
+            "temperature": 0.2,
+            "max_tokens": 450
+        ]
+
+        guard let bodyData = try? JSONSerialization.data(withJSONObject: payload) else {
+            return nil
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.timeoutInterval = 15
+        request.httpBody = bodyData
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let httpResp = response as? HTTPURLResponse, (200...299).contains(httpResp.statusCode),
+                  let json = try JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let choices = json["choices"] as? [[String: Any]],
+                  let message = choices.first?["message"] as? [String: Any],
+                  let text = message["content"] as? String else {
                 return nil
             }
             return text.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -569,14 +642,14 @@ nonisolated enum AIAdvisorService {
         }
     }
 
-    // MARK: - Local CLI (claude / gemini)
+    // MARK: - Local CLI (Antigravity `agy` / Claude Code `claude` / OpenAI Codex `codex`)
 
     @concurrent
     private static func callLocalCLI(prompt: String, preferredTool: LocalCLITool) async -> (String, String)? {
-        let toolsOrder: [LocalCLITool] = preferredTool == .claude ? [.claude, .gemini] : [.gemini, .claude]
+        let toolsOrder = [preferredTool] + LocalCLITool.allCases.filter { $0 != preferredTool }
 
         for tool in toolsOrder {
-            if let output = await runCLICommand(binary: tool.rawValue, prompt: prompt) {
+            if let output = await runCLICommand(tool: tool, prompt: prompt) {
                 return (output, "\(tool.rawValue) CLI")
             }
         }
@@ -584,9 +657,10 @@ nonisolated enum AIAdvisorService {
     }
 
     @concurrent
-    private static func runCLICommand(binary: String, prompt: String) async -> String? {
+    private static func runCLICommand(tool: LocalCLITool, prompt: String) async -> String? {
         let escapedPrompt = prompt.replacingOccurrences(of: "'", with: "'\\''")
-        let command = "command -v \(binary) >/dev/null 2>&1 && \(binary) -p '\(escapedPrompt)'"
+        let pathPrefix = "export PATH=\"$HOME/.local/share/mise/shims:$HOME/.local/bin:/opt/homebrew/bin:/usr/local/bin:/Applications/Antigravity.app/Contents/Resources/app/bin:$PATH\"; "
+        let command = pathPrefix + tool.buildShellCommand(escapedSingleQuotedPrompt: escapedPrompt)
 
         let process = Process()
         process.executableURL = URL(fileURLWithPath: "/bin/zsh")

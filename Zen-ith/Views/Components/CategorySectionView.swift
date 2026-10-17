@@ -15,11 +15,32 @@ struct CategorySectionView: View {
                             item: item,
                             isAIExpanded: viewModel.activeAIItemID == item.id,
                             isCleaning: viewModel.isCleaning,
+                            hasCleanupFailure: viewModel.cleanupFailures[item.id] != nil,
                             onToggle: { viewModel.toggleItemSelection(id: item.id) },
                             onToggleAI: { viewModel.toggleAIAdvisor(for: item) },
                             onRevealInFinder: { viewModel.revealInFinder(item) },
                             onDeleteSingle: { viewModel.cleanSingleItem(item) }
                         )
+
+                        if let failureDetail = viewModel.cleanupFailures[item.id] {
+                            CleanupFailureInlineCardView(
+                                detail: failureDetail,
+                                isCleaning: viewModel.isCleaning,
+                                isCommandCopied: viewModel.copiedCommandText == failureDetail.suggestedTerminalCommand && failureDetail.suggestedTerminalCommand != nil,
+                                onRetryWithAdmin: {
+                                    viewModel.retryFailureWithAdmin(failureDetail)
+                                },
+                                onCopyCommand: { cmd in
+                                    viewModel.copyTerminalCommand(cmd)
+                                },
+                                onOpenFullDiskAccess: {
+                                    viewModel.openFullDiskAccessSettings()
+                                },
+                                onDismiss: {
+                                    viewModel.dismissFailure(id: item.id)
+                                }
+                            )
+                        }
 
                         if viewModel.activeAIItemID == item.id,
                            let analysis = viewModel.itemAnalyses[item.id] {

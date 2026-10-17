@@ -71,7 +71,7 @@ struct SettingsView: View {
                                     }
                                 }
                                 .labelsHidden()
-                                .frame(width: 210)
+                                .frame(width: 230)
                             }
                         }
 
@@ -93,6 +93,18 @@ struct SettingsView: View {
                                     .font(.system(size: 11))
                                 Spacer()
                                 SecureField("AIzaSy... (環境変数 GEMINI_API_KEY も可)", text: $settings.geminiAPIKey)
+                                    .textFieldStyle(.roundedBorder)
+                                    .font(.system(size: 11))
+                                    .frame(width: 230)
+                            }
+                        }
+
+                        if settings.aiProvider == .openAIAPI || settings.aiProvider == .auto {
+                            HStack {
+                                Text("OpenAI API キー (任意)")
+                                    .font(.system(size: 11))
+                                Spacer()
+                                SecureField("sk-... (環境変数 OPENAI_API_KEY も可)", text: $settings.openAIAPIKey)
                                     .textFieldStyle(.roundedBorder)
                                     .font(.system(size: 11))
                                     .frame(width: 230)

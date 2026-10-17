@@ -5,6 +5,8 @@ struct FooterActionBarView: View {
 
     var body: some View {
         VStack(spacing: 8) {
+            CleanupFailureSummaryPanelView(viewModel: viewModel)
+
             if let message = viewModel.bannerMessage {
                 HStack(spacing: 6) {
                     Text(message)

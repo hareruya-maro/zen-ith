@@ -30,17 +30,21 @@ xcodebuild \
 
 cp -R "${APP_BUNDLE}" "${DIST_DIR}/${APP_NAME}.app"
 
-# Developer ID 証明書が環境変数 DEVELOPER_ID_APPLICATION で指定されている場合は署名を実行
+# 環境変数 DEVELOPER_ID_APPLICATION が未指定の場合はキーチェーンから Developer ID Application 証明書を自動検出
+if [[ -z "${DEVELOPER_ID_APPLICATION:-}" ]]; then
+  DEVELOPER_ID_APPLICATION=$(security find-identity -v -p codesigning | sed -n 's/.*"\(Developer ID Application:[^"]*\)".*/\1/p' | head -n 1)
+fi
+
 if [[ -n "${DEVELOPER_ID_APPLICATION:-}" ]]; then
   echo "🔏 Developer ID でコード署名を実行しています: ${DEVELOPER_ID_APPLICATION}"
-  # Sparkle.framework 内部の XPC サービス・ヘルパーを含めて署名
+  # Sparkle.framework 内部の XPC サービス・ヘルパーを含めて Hardened Runtime 付きで署名
   codesign --force --deep --options runtime \
     --entitlements "${PROJECT_ROOT}/${APP_NAME}/${APP_NAME}.entitlements" \
     --sign "${DEVELOPER_ID_APPLICATION}" \
     "${DIST_DIR}/${APP_NAME}.app"
 else
-  echo "ℹ️ DEVELOPER_ID_APPLICATION 未指定のため Ad-hoc 署名でパッケージングします。"
-  codesign --force --deep --sign - "${DIST_DIR}/${APP_NAME}.app"
+  echo "⚠️ Developer ID Application 証明書が見つかりません。キーチェーンまたは DEVELOPER_ID_APPLICATION 環境変数を確認してください。"
+  exit 1
 fi
 
 echo "📦 配布・Sparkle自動更新用 ZIP アーカイブを作成しています: ${ZIP_PATH}"

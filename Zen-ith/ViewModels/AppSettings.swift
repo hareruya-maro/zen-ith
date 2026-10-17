@@ -30,9 +30,10 @@ final class AppSettings: ObservableObject {
 
     // AIアドバイザー設定
     @AppStorage("zenith.aiProvider") var aiProviderRaw: String = AIProviderOption.auto.rawValue
-    @AppStorage("zenith.localCLITool") var localCLIToolRaw: String = LocalCLITool.claude.rawValue
+    @AppStorage("zenith.localCLITool") var localCLIToolRaw: String = LocalCLITool.antigravity.rawValue
     @AppStorage("zenith.ollamaModel") var ollamaModel: String = ""
     @AppStorage("zenith.geminiAPIKey") var geminiAPIKey: String = ""
+    @AppStorage("zenith.openAIAPIKey") var openAIAPIKey: String = ""
 
     init() {
         if !hasInitializedWorkspaces {
@@ -71,7 +72,7 @@ final class AppSettings: ObservableObject {
     }
 
     var localCLITool: LocalCLITool {
-        get { LocalCLITool(rawValue: localCLIToolRaw) ?? .claude }
+        get { LocalCLITool(rawValue: localCLIToolRaw) ?? .antigravity }
         set {
             localCLIToolRaw = newValue.rawValue
             objectWillChange.send()

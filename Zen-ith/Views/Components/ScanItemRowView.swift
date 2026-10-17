@@ -4,6 +4,7 @@ struct ScanItemRowView: View {
     let item: ScanItem
     let isAIExpanded: Bool
     let isCleaning: Bool
+    var hasCleanupFailure: Bool = false
     let onToggle: () -> Void
     let onToggleAI: () -> Void
     let onRevealInFinder: () -> Void
@@ -25,6 +26,15 @@ struct ScanItemRowView: View {
                         .font(.system(size: 12, weight: .medium))
                         .lineLimit(1)
                         .truncationMode(.middle)
+
+                    if hasCleanupFailure {
+                        Text("⛔ スキップ")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.red)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1)
+                            .background(Color.red.opacity(0.15), in: Capsule())
+                    }
 
                     if item.isCaution {
                         Text("⚠️ 要確認")

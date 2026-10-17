@@ -126,14 +126,3 @@ gh release create v0.2.0 \
 ```
 
 これで、既に Zen-ith を利用しているユーザーの環境にも Sparkle 2 経由で `v0.2.0` のアップデートが配信されます。
-
----
-
-## 4. （参考）Developer ID を使わずローカル・チーム内で簡易配布する場合
-
-`DEVELOPER_ID_APPLICATION` を指定せずに `./scripts/package_release.sh` を実行すると Ad-hoc 署名でパッケージングされます。
-その場合、受け取った側は `/Applications/Zen-ith.app` に配置したあと初回のみ以下を実行して Gatekeeper 隔離属性を解除してください。
-
-```zsh
-xattr -cr /Applications/Zen-ith.app
-```

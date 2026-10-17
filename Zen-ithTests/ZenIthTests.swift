@@ -344,12 +344,16 @@ struct ZenIthTests {
             item: derivedDataItem,
             question: "消した後に元に戻すコマンドを教えて",
             provider: .offlineSmart,
-            localCLI: .claude,
+            localCLI: .antigravity,
             ollamaModel: "",
             geminiAPIKey: ""
         )
         #expect(reply.isUser == false)
         #expect(reply.text.contains("Xcode"))
+
+        #expect(LocalCLITool.antigravity.buildShellCommand(escapedSingleQuotedPrompt: "test").contains("agy -p"))
+        #expect(LocalCLITool.claude.buildShellCommand(escapedSingleQuotedPrompt: "test").contains("claude -p"))
+        #expect(LocalCLITool.codex.buildShellCommand(escapedSingleQuotedPrompt: "test").contains("codex exec --ephemeral"))
     }
 
     @Test("Mac空き容量ゲージの回復予測計算と検索キーワード絞り込みが正しく動作する")
@@ -402,6 +406,65 @@ struct ZenIthTests {
         #expect(!VersionComparator.isNewer(candidate: "v0.1.0", than: "0.1.0"))
         #expect(!VersionComparator.isNewer(candidate: "v0.0.9", than: "0.1.0"))
     }
+
+    @Test("削除スキップ時の原因診断（root権限キャッシュ・Simulatorロック・TCC権限エラー）と対処方法が適切に生成される")
+    func cleanupFailureDiagnosisTest() {
+        let dyldItem = ScanItem(
+            name: "Simulator dyld共有キャッシュ (21F79)",
+            subtitle: "Simulator Cache • ~/Library/Developer/CoreSimulator/Caches/dyld/23F79/com.apple.CoreSimulator.SimRuntime.iOS-17-5.21F79",
+            url: URL(fileURLWithPath: "/Users/test/Library/Developer/CoreSimulator/Caches/dyld/23F79/com.apple.CoreSimulator.SimRuntime.iOS-17-5.21F79"),
+            sizeBytes: 2_500_000_000,
+            lastModified: Date(),
+            category: .xcode
+        )
+        let permissionError = NSError(
+            domain: NSCocoaErrorDomain,
+            code: NSFileWriteNoPermissionError,
+            userInfo: [NSLocalizedDescriptionKey: "“com.apple.CoreSimulator.SimRuntime.iOS-17-5.21F79”を削除できませんでした。アクセス権がありません。"]
+        )
+        let dyldDiagnosis = CleanupService.diagnoseFailure(
+            for: dyldItem,
+            error: permissionError,
+            deletionMode: .hybrid
+        )
+        #expect(dyldDiagnosis.canRetryWithAdmin == true)
+        #expect(dyldDiagnosis.reasonTitle.contains("root"))
+        #expect(dyldDiagnosis.suggestedTerminalCommand?.contains("sudo rm -rf") == true)
+        #expect(!dyldDiagnosis.remediationSteps.isEmpty)
+
+        let simDeviceItem = ScanItem(
+            name: "iPhone 16 Pro [iOS 18.2] (11112222)",
+            subtitle: "Simulator Device • ~/Library/Developer/CoreSimulator/Devices/11112222-3333-4444-5555-666677778888",
+            url: URL(fileURLWithPath: "/Users/test/Library/Developer/CoreSimulator/Devices/11112222-3333-4444-5555-666677778888"),
+            sizeBytes: 3_000_000_000,
+            lastModified: Date(),
+            category: .xcode
+        )
+        let simDiagnosis = CleanupService.diagnoseFailure(
+            for: simDeviceItem,
+            error: permissionError,
+            deletionMode: .hybrid
+        )
+        #expect(simDiagnosis.canRetryWithAdmin == true)
+        #expect(simDiagnosis.suggestedTerminalCommand?.contains("xcrun simctl delete") == true)
+
+        let downloadsItem = ScanItem(
+            name: "ProtectedInstaller.dmg",
+            subtitle: "~/Downloads/ProtectedInstaller.dmg",
+            url: URL(fileURLWithPath: "/Users/test/Downloads/ProtectedInstaller.dmg"),
+            sizeBytes: 500_000_000,
+            lastModified: Date(),
+            category: .downloads
+        )
+        let tccDiagnosis = CleanupService.diagnoseFailure(
+            for: downloadsItem,
+            error: permissionError,
+            deletionMode: .hybrid
+        )
+        #expect(tccDiagnosis.needsFullDiskAccessHint == true)
+        #expect(tccDiagnosis.canRetryWithAdmin == true)
+    }
 }
+
 
 
