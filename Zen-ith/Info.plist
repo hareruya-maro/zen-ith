@@ -27,7 +27,7 @@
 	<key>SUFeedURL</key>
 	<string>https://github.com/hareruya-maro/zen-ith/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>
-	<string></string>
+	<string>GPtj4FCH32ScY/ANGQgOJ7B/bbZnq4GHi4xtUKBEB+U=</string>
 	<key>GitHubRepository</key>
 	<string>hareruya-maro/zen-ith</string>
 </dict>
