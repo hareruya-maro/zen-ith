@@ -7,10 +7,12 @@ final class AppSettings: ObservableObject {
     @AppStorage("zenith.deletionMode") var deletionModeRawValue: String = DeletionMode.hybrid.rawValue
     @AppStorage("zenith.scanDownloadsFolder") var scanDownloadsFolder: Bool = true
     @AppStorage("zenith.scanDesktopFolder") var scanDesktopFolder: Bool = false
-    @AppStorage("zenith.showSizeInMenuBar") var showSizeInMenuBar: Bool = true
+    @AppStorage("zenith.showSizeInMenuBar") var showSizeInMenuBar: Bool = false
+    @AppStorage("zenith.lastNonZeroAlertThresholdGB") var lastNonZeroAlertThresholdGB: Int = 50
     @AppStorage("zenith.alertThresholdGB") var alertThresholdGB: Int = 50 {
         didSet {
             if alertThresholdGB > 0 {
+                lastNonZeroAlertThresholdGB = alertThresholdGB
                 NotificationAndLaunchService.requestNotificationPermissionIfNeeded()
             }
         }

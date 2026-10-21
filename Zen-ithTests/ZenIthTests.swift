@@ -265,6 +265,28 @@ struct ZenIthTests {
             ) == false
         )
 
+        // 500GB などの大容量閾値の判定
+        let fiveHundredTwentyGB: Int64 = 520_000_000_000
+        let fourHundredEightyGB: Int64 = 480_000_000_000
+
+        #expect(
+            NotificationAndLaunchService.shouldSendCapacityAlert(
+                totalBytes: fourHundredEightyGB,
+                thresholdGB: 500,
+                lastNotifiedDate: nil,
+                now: now
+            ) == false
+        )
+
+        #expect(
+            NotificationAndLaunchService.shouldSendCapacityAlert(
+                totalBytes: fiveHundredTwentyGB,
+                thresholdGB: 500,
+                lastNotifiedDate: nil,
+                now: now
+            ) == true
+        )
+
         // クールダウン経過後（例: 7時間前）は再通知する
         let sevenHoursAgo = now.addingTimeInterval(-7 * 3_600)
         #expect(

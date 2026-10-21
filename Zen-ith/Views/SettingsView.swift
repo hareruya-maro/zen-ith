@@ -222,7 +222,7 @@ struct SettingsView: View {
 
                     // 定期スキャン設定 ＆ 容量アラート通知
                     VStack(alignment: .leading, spacing: 10) {
-                        Label("定期スキャン・容量アラート通知", systemImage: "clock.arrow.circlepath")
+                        Label("定期スキャン・容量アラート ＆ メニューバー表示", systemImage: "clock.arrow.circlepath")
                             .font(.system(size: 13, weight: .semibold))
 
                         HStack {
@@ -244,21 +244,97 @@ struct SettingsView: View {
                             .frame(width: 140)
                         }
 
-                        HStack {
-                            Text("容量アラート通知（通知センター）")
-                                .font(.system(size: 12))
-                            Spacer()
-                            Picker("容量アラート閾値", selection: $settings.alertThresholdGB) {
-                                Text("OFF").tag(0)
-                                Text("30 GB 超過時").tag(30)
-                                Text("50 GB 超過時").tag(50)
+                        // 容量アラート通知 ＆ メニューバーバッジ設定
+                        VStack(alignment: .leading, spacing: 8) {
+                            Toggle("容量アラート通知 ＆ メニューバー警告バッジ", isOn: Binding(
+                                get: { settings.alertThresholdGB > 0 },
+                                set: { isEnabled in
+                                    if isEnabled {
+                                        settings.alertThresholdGB = max(settings.lastNonZeroAlertThresholdGB, 5)
+                                    } else {
+                                        settings.alertThresholdGB = 0
+                                    }
+                                }
+                            ))
+                            .font(.system(size: 12, weight: .medium))
+
+                            if settings.alertThresholdGB > 0 {
+                                VStack(alignment: .leading, spacing: 6) {
+                                    HStack {
+                                        Text("警告閾値:")
+                                            .font(.system(size: 11))
+                                            .foregroundStyle(.secondary)
+                                        Spacer()
+                                        Text("\(settings.alertThresholdGB) GB 超過時")
+                                            .font(.system(size: 12, weight: .semibold, design: .rounded))
+                                            .foregroundStyle(Color.accentColor)
+                                    }
+
+                                    Slider(
+                                        value: Binding(
+                                            get: { Double(settings.alertThresholdGB) },
+                                            set: { settings.alertThresholdGB = Int($0) }
+                                        ),
+                                        in: 5...500,
+                                        step: 5
+                                    )
+
+                                    HStack {
+                                        Text("5 GB")
+                                            .font(.system(size: 9.5))
+                                            .foregroundStyle(.secondary)
+                                        Spacer()
+                                        Text("250 GB")
+                                            .font(.system(size: 9.5))
+                                            .foregroundStyle(.secondary)
+                                        Spacer()
+                                        Text("500 GB")
+                                            .font(.system(size: 9.5))
+                                            .foregroundStyle(.secondary)
+                                    }
+
+                                    // クイックプリセットボタン
+                                    HStack(spacing: 6) {
+                                        Text("プリセット:")
+                                            .font(.system(size: 10))
+                                            .foregroundStyle(.secondary)
+
+                                        ForEach([20, 50, 100, 200, 500], id: \.self) { gb in
+                                            Button("\(gb)GB") {
+                                                settings.alertThresholdGB = gb
+                                            }
+                                            .buttonStyle(.bordered)
+                                            .controlSize(.mini)
+                                            .tint(settings.alertThresholdGB == gb ? .accentColor : nil)
+                                        }
+                                    }
+                                    .padding(.top, 2)
+
+                                    Text("不要ファイルがこの容量を超えると、メニューバーのアプリアイコンに赤いバッジが点灯し、通知センターで通知します。")
+                                        .font(.system(size: 10))
+                                        .foregroundStyle(.secondary)
+                                        .padding(.top, 2)
+                                }
+                                .padding(10)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 6)
+                                        .fill(Color(nsColor: .controlBackgroundColor))
+                                )
                             }
-                            .labelsHidden()
-                            .frame(width: 140)
                         }
 
-                        Toggle("メニューバーに検出容量テキストを表示する", isOn: $settings.showSizeInMenuBar)
-                            .font(.system(size: 12))
+                        Divider()
+                            .padding(.vertical, 2)
+
+                        // メニューバー表示オプション
+                        VStack(alignment: .leading, spacing: 3) {
+                            Toggle("メニューバーに検出容量テキストも併記する", isOn: $settings.showSizeInMenuBar)
+                                .font(.system(size: 12))
+                            Text("通常はアプリアイコンとバッジのみをコンパクトに表示します。")
+                                .font(.system(size: 10))
+                                .foregroundStyle(.secondary)
+                                .padding(.leading, 18)
+                        }
                     }
 
                     Divider()
