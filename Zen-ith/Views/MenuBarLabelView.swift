@@ -8,10 +8,13 @@ struct MenuBarLabelView: View {
     var body: some View {
         HStack(spacing: 5) {
             ZStack(alignment: .topTrailing) {
-                // macOS メニューバー標準のモノクロ・テンプレートシンボル
-                // Zen-ith のアイデンティティである「3層のキャッシュスラブ」を象徴
-                Image(systemName: "square.3.layers.3d")
-                    .font(.system(size: 15, weight: .medium))
+                // アプリアイコンの3層を単色化。色はメニューバーの外観に追従する。
+                Image("MenuBarIcon")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 18, height: 18)
+                    .accessibilityLabel("Zen-ith")
 
                 // 容量アラート設定値以上の場合は警告バッジを表示
                 if viewModel.isOverAlertThreshold {
