@@ -310,7 +310,7 @@ struct SettingsView: View {
                                     }
                                     .padding(.top, 2)
 
-                                    Text("不要ファイルがこの容量を超えると、メニューバーのアプリアイコンに赤いバッジが点灯し、通知センターで通知します。")
+                                    Text("不要ファイルがこの容量を超えると、メニューバーのアイコンに赤いバッジが点灯し、通知センターで通知します。")
                                         .font(.system(size: 10))
                                         .foregroundStyle(.secondary)
                                         .padding(.top, 2)
@@ -330,7 +330,7 @@ struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 3) {
                             Toggle("メニューバーに検出容量テキストも併記する", isOn: $settings.showSizeInMenuBar)
                                 .font(.system(size: 12))
-                            Text("通常はアプリアイコンとバッジのみをコンパクトに表示します。")
+                            Text("通常はメニューバーアイコンとバッジのみをコンパクトに表示します。")
                                 .font(.system(size: 10))
                                 .foregroundStyle(.secondary)
                                 .padding(.leading, 18)

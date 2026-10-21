@@ -5,44 +5,34 @@ struct MenuBarLabelView: View {
     @ObservedObject var viewModel: ScannerViewModel
     @ObservedObject var settings: AppSettings
 
-    private var appIcon: NSImage? {
-        NSImage(named: NSImage.applicationIconName) ?? NSApplication.shared.applicationIconImage
-    }
-
     var body: some View {
         HStack(spacing: 5) {
             ZStack(alignment: .topTrailing) {
-                // アプリアイコン
-                if let icon = appIcon {
-                    Image(nsImage: icon)
-                        .resizable()
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: 18, height: 18)
-                } else {
-                    Image(systemName: "sparkles")
-                        .font(.system(size: 13, weight: .medium))
-                }
+                // macOS メニューバー標準のモノクロ・テンプレートシンボル
+                // Zen-ith のアイデンティティである「3層のキャッシュスラブ」を象徴
+                Image(systemName: "square.3.layers.3d")
+                    .font(.system(size: 15, weight: .medium))
 
                 // 容量アラート設定値以上の場合は警告バッジを表示
                 if viewModel.isOverAlertThreshold {
                     Circle()
                         .fill(Color.red)
-                        .frame(width: 7.5, height: 7.5)
+                        .frame(width: 6.5, height: 6.5)
                         .overlay(
                             Circle()
-                                .stroke(Color.white.opacity(0.85), lineWidth: 1)
+                                .stroke(Color.primary.opacity(0.15), lineWidth: 0.5)
                         )
-                        .offset(x: 2, y: -2)
+                        .offset(x: 3, y: -2)
                 } else if viewModel.isScanning {
                     // スキャン中は進行中インジケータを小さく表示
                     Circle()
                         .fill(Color.accentColor)
-                        .frame(width: 5.5, height: 5.5)
+                        .frame(width: 5, height: 5)
                         .overlay(
                             Circle()
                                 .stroke(Color.white.opacity(0.8), lineWidth: 0.8)
                         )
-                        .offset(x: 1.5, y: -1.5)
+                        .offset(x: 2.5, y: -1.5)
                 }
             }
             .frame(width: 20, height: 18)
