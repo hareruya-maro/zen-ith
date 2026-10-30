@@ -77,6 +77,10 @@ struct MainPopoverView: View {
                     .padding()
                 }
             } else {
+                allCategoriesSelectionBar
+
+                Divider()
+
                 ScrollView {
                     LazyVStack(spacing: 10) {
                         ForEach(viewModel.categoryGroups) { group in
@@ -106,5 +110,47 @@ struct MainPopoverView: View {
 
             FooterActionBarView(viewModel: viewModel)
         }
+    }
+
+    private var allCategoriesSelectionBar: some View {
+        HStack(spacing: 8) {
+            Button {
+                viewModel.toggleAllSelection()
+            } label: {
+                HStack(spacing: 6) {
+                    Image(systemName: viewModel.allSelectionCheckboxIconName)
+                        .font(.system(size: 14))
+                        .foregroundStyle(viewModel.filteredSelectedCount > 0 ? Color.accentColor : Color.secondary)
+
+                    Text("すべてのタイプを一括選択")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(.primary)
+
+                    Text("(\(viewModel.filteredSelectedCount)/\(viewModel.filteredItems.count)項目)")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                }
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!viewModel.canToggleAllSelection || viewModel.isScanning || viewModel.isCleaning)
+            .help(viewModel.isAllChecked ? "すべてのタイプの選択を解除" : "すべてのタイプの対象データを一括選択（⚠️要確認を除く）")
+            .accessibilityLabel("すべてのタイプを一括選択")
+
+            Spacer()
+
+            if viewModel.filteredSelectedBytes > 0 && viewModel.filteredSelectedBytes < viewModel.filteredTotalBytes {
+                Text("選択 \(ByteFormatter.string(fromBytes: viewModel.filteredSelectedBytes)) /")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.secondary)
+            }
+
+            Text(ByteFormatter.string(fromBytes: viewModel.filteredTotalBytes))
+                .font(.system(size: 11.5, weight: .bold, design: .monospaced))
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 7)
+        .background(Color(nsColor: .controlBackgroundColor).opacity(0.45))
     }
 }

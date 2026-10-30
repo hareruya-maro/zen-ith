@@ -59,11 +59,15 @@ final class ScannerViewModel: ObservableObject {
     private var periodicScanTask: Task<Void, Never>?
     private var lastAlertNotifiedDate: Date?
 
-    init(settings: AppSettings) {
+    init(settings: AppSettings, initialItems: [ScanItem]? = nil) {
         self.settings = settings
         self.diskSpace = DirectorySizeCalculator.currentDiskSpaceMetrics()
-        startScan()
-        reschedulePeriodicScan()
+        if let initialItems {
+            self.items = initialItems
+        } else {
+            startScan()
+            reschedulePeriodicScan()
+        }
     }
 
     var totalReclaimableBytes: Int64 {
@@ -89,6 +93,55 @@ final class ScannerViewModel: ObservableObject {
     var filteredItems: [ScanItem] {
         guard isSearchActive else { return items }
         return items.filter { $0.matchesSearchQuery(searchQuery) }
+    }
+
+    var filteredTotalBytes: Int64 {
+        filteredItems.reduce(0) { $0 + $1.sizeBytes }
+    }
+
+    var filteredSelectedItems: [ScanItem] {
+        filteredItems.filter(\.isSelected)
+    }
+
+    var filteredSelectedBytes: Int64 {
+        filteredSelectedItems.reduce(0) { $0 + $1.sizeBytes }
+    }
+
+    var filteredSelectedCount: Int {
+        filteredSelectedItems.count
+    }
+
+    /// 表示中の全タイプ項目のうち、要注意でない項目がすべて選択されているか
+    var isAllChecked: Bool {
+        let currentItems = filteredItems
+        guard !currentItems.isEmpty else { return false }
+        let selectable = currentItems.filter { !$0.isCaution }
+        if selectable.isEmpty {
+            return currentItems.contains(where: \.isSelected)
+        }
+        return selectable.allSatisfy(\.isSelected)
+    }
+
+    /// 表示中の全タイプ項目のうち、一部のみが選択されているか
+    var isAllPartiallyChecked: Bool {
+        filteredSelectedCount > 0 && !isAllChecked
+    }
+
+    /// 全タイプ一括選択・解除が可能か（通常項目があるか、手動選択済みの要注意項目がある場合）
+    var canToggleAllSelection: Bool {
+        filteredItems.contains { !$0.isCaution || $0.isSelected }
+    }
+
+    var allSelectionCheckboxIconName: String {
+        if filteredItems.isEmpty || !canToggleAllSelection {
+            return "square.dotted"
+        } else if isAllChecked {
+            return "checkmark.square.fill"
+        } else if isAllPartiallyChecked {
+            return "minus.square.fill"
+        } else {
+            return "square"
+        }
     }
 
     var isOverAlertThreshold: Bool {
@@ -292,6 +345,21 @@ final class ScannerViewModel: ObservableObject {
         }
         let targetState = !group.isCategoryChecked
         let visibleIDs = Set(group.items.map(\.id))
+
+        for index in items.indices where visibleIDs.contains(items[index].id) {
+            if targetState && items[index].isCaution {
+                continue
+            }
+            items[index].isSelected = targetState
+        }
+    }
+
+    /// 表示中のすべてのタイプの項目を一括ON / OFFする（ON時は要注意項目を除外、OFF時は全項目を解除）
+    func toggleAllSelection() {
+        let currentItems = filteredItems
+        guard !currentItems.isEmpty else { return }
+        let targetState = !isAllChecked
+        let visibleIDs = Set(currentItems.map(\.id))
 
         for index in items.indices where visibleIDs.contains(items[index].id) {
             if targetState && items[index].isCaution {

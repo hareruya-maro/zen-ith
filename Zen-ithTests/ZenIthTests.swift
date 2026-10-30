@@ -486,6 +486,81 @@ struct ZenIthTests {
         #expect(tccDiagnosis.needsFullDiskAccessHint == true)
         #expect(tccDiagnosis.canRetryWithAdmin == true)
     }
+
+    @Test("全タイプ一括ON/OFF（toggleAllSelection）が要注意項目を保護しつつ全カテゴリを切り替えられる")
+    @MainActor
+    func toggleAllSelectionTest() {
+        let now = Date()
+        let xcodeItem = ScanItem(
+            id: "xcode-1",
+            name: "DerivedData-A",
+            subtitle: "DerivedData",
+            url: URL(fileURLWithPath: "/tmp/DerivedData-A"),
+            sizeBytes: 1_000_000_000,
+            lastModified: now,
+            category: .xcode,
+            isSelected: true
+        )
+        let nodeItem = ScanItem(
+            id: "node-1",
+            name: "npm cache",
+            subtitle: "~/.npm/_cacache",
+            url: URL(fileURLWithPath: "/tmp/npm-cache"),
+            sizeBytes: 500_000_000,
+            lastModified: now,
+            category: .nodeWeb,
+            isSelected: false
+        )
+        let cautionItem = ScanItem(
+            id: "xcode-archive",
+            name: "App.xcarchive",
+            subtitle: "Archives",
+            url: URL(fileURLWithPath: "/tmp/App.xcarchive"),
+            sizeBytes: 2_000_000_000,
+            lastModified: now,
+            category: .xcode,
+            isCaution: true,
+            isSelected: false
+        )
+
+        let vm = ScannerViewModel(
+            settings: AppSettings(),
+            initialItems: [xcodeItem, nodeItem, cautionItem]
+        )
+
+        // 初期状態: xcode-1 のみ選択中（一部選択状態）
+        #expect(vm.isAllChecked == false)
+        #expect(vm.isAllPartiallyChecked == true)
+        #expect(vm.allSelectionCheckboxIconName == "minus.square.fill")
+        #expect(vm.selectedCount == 1)
+
+        // 1回目のトグル: 要注意以外の全タイプ（xcode-1, node-1）がONになり、要注意項目はOFFのまま保護される
+        vm.toggleAllSelection()
+        #expect(vm.isAllChecked == true)
+        #expect(vm.isAllPartiallyChecked == false)
+        #expect(vm.allSelectionCheckboxIconName == "checkmark.square.fill")
+        #expect(vm.selectedCount == 2)
+        #expect(vm.items.first(where: { $0.id == "xcode-1" })?.isSelected == true)
+        #expect(vm.items.first(where: { $0.id == "node-1" })?.isSelected == true)
+        #expect(vm.items.first(where: { $0.id == "xcode-archive" })?.isSelected == false)
+
+        // 要注意項目を手動でONにした後、一括OFFを実行すると要注意項目も含めすべてOFFになる
+        vm.toggleItemSelection(id: "xcode-archive")
+        #expect(vm.selectedCount == 3)
+        #expect(vm.isAllChecked == true)
+
+        vm.toggleAllSelection()
+        #expect(vm.isAllChecked == false)
+        #expect(vm.isAllPartiallyChecked == false)
+        #expect(vm.allSelectionCheckboxIconName == "square")
+        #expect(vm.selectedCount == 0)
+
+        // 全OFFから再度トグルすると、要注意以外の全タイプがONになる
+        vm.toggleAllSelection()
+        #expect(vm.isAllChecked == true)
+        #expect(vm.selectedCount == 2)
+        #expect(vm.items.first(where: { $0.id == "xcode-archive" })?.isSelected == false)
+    }
 }
 
 
